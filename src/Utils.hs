@@ -42,9 +42,10 @@ goodPassport :: Parser Passport
 goodPassport = Passport <$> label <*> body <* endOfLine
   where
     label = read . return <$> digit
-    body = liftA2 (+) 
-                  ((* 1000000) <$> decimal <* char ',' )
-                  decimal
+    body = do
+        x <- decimal <* char ','
+        y <- decimal
+        return $ x * 1000000 + y
 
 toPassportVector :: FilePath -> IO ()
 toPassportVector f = do
