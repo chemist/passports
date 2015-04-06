@@ -3,15 +3,14 @@ module Utils where
 
 import Text.Printf (printf)
 import Data.Word (Word8, Word32)
-import Control.Monad (forM, forM_, void)
+import Control.Monad (forM_, void)
 import Control.Applicative ((<$>), (<*>), (<|>), (<*))
 import Pipes (Producer, lift, (>->), runEffect, Consumer, await)
-import System.IO (openFile, IOMode(..), hClose, Handle)
+import System.IO (IOMode(..), withFile)
 import Data.ByteString.Char8 (ByteString, hPut)
 import Pipes.ByteString (fromHandle)
 import System.FilePath ((</>))
 import System.Directory (createDirectoryIfMissing)
-import Data.Map (Map, fromList, (!))
 import Data.Either 
 
 import Data.Attoparsec.ByteString.Char8 (Parser, takeWhile, endOfLine, digit, decimal, char, endOfInput)
@@ -51,16 +50,9 @@ parsePassport = good <|> bad
 
 
 toPassportVector :: FilePath -> IO ()
-toPassportVector f = do
-    h <- openFile f ReadMode
+toPassportVector f = withFile f ReadMode $ \h -> do
     createDirectoryIfMissing True "passports" 
-    vectors <- forM [0 .. 9] $ \x -> do
-        v <- openFile ("passports" </> show x) ReadWriteMode
-        return (x, v)
-    void . runEffect $ PA.parsed parsePassport (fromHandle h) >-> write (fromList vectors)
-    forM_ vectors $ \(_, v) -> do
-        hClose v
-    hClose h
+    void . runEffect $ PA.parsed parsePassport (fromHandle h) >-> write 
     forM_ [0..9 :: Int] $ \x -> do
         sortMMapedVector ("passports" </> show x) 
 
@@ -68,13 +60,12 @@ instance Serialize Passport where
     put (Passport l b) = put l >> put b 
     get = Passport <$> get <*> get
 
-write :: Map Word8 Handle -> Consumer (Either ByteString Passport) IO (Either (PA.ParsingError, Producer ByteString IO ()) ())
-write vectors = do
+write :: Consumer (Either ByteString Passport) IO (Either (PA.ParsingError, Producer ByteString IO ()) ())
+write = do
     either (lift . print) write' =<< await
-    write vectors
+    write 
     where
-      write' (Passport label' body) = lift $ hPut (getHandle label') (runPut $ putWord32host body)
-      getHandle label' = vectors ! label'
+      write' (Passport label' body) = lift $ withFile ("passports" </> show label') AppendMode (flip hPut (runPut $ putWord32host body))
 
 sortMMapedVector :: FilePath -> IO ()
 sortMMapedVector fp = sort =<< (unsafeMMapMVector fp ReadWrite Nothing :: IO (V.MVector (PrimState IO) Word32))
