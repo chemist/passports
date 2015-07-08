@@ -4,10 +4,10 @@ module Utils where
 import Text.Printf (printf)
 import Data.Word (Word8, Word32)
 import Control.Monad (forM_, void)
-import Control.Applicative ((<$>), (<*>), (<|>), (<*))
+import Control.Applicative ((<$>), (<*>), (<|>), (<*), many)
 import Pipes (Producer, lift, (>->), runEffect, Consumer, await)
 import System.IO (IOMode(..), withFile)
-import Data.ByteString.Char8 (ByteString, hPut)
+import Data.ByteString.Char8 (ByteString, hPut, readFile)
 import Pipes.ByteString (fromHandle)
 import System.FilePath ((</>))
 import System.Directory (createDirectoryIfMissing)
@@ -15,7 +15,7 @@ import Data.Either
 
 import Data.Attoparsec.ByteString.Char8 (Parser, takeWhile, endOfLine, digit, decimal, char, endOfInput)
 import qualified Pipes.Attoparsec as PA
-import Data.Serialize (Serialize, put, get, runPut, putWord32host)
+import Data.Serialize (Serialize, put, get, runPut, putWord32host, runGet, getWord32host)
 import qualified Data.Vector.Storable as V
 import Data.Vector.Algorithms.Heap (sort)
 import Data.Vector.Storable.MMap (unsafeMMapMVector, unsafeMMapVector, Mode(..))
@@ -23,7 +23,7 @@ import Control.Monad.Primitive (PrimState)
 import Data.Bits (shiftR)
 import Data.Char (digitToInt)
 
-import Prelude hiding (elem, takeWhile)
+import Prelude hiding (elem, takeWhile, readFile)
 
 input :: Parser Passport
 input = Passport <$> label <*> decimal <* endOfInput
@@ -66,6 +66,14 @@ write = do
     write 
     where
       write' (Passport label' body) = lift $ withFile ("passports" </> show label') AppendMode (flip hPut (runPut $ putWord32host body))
+
+recovery :: FilePath -> FilePath -> IO ()
+recovery base result = forM_ [0..9::Int] $ \f -> do
+    body <- readFile (base </> show f) 
+    let Right l = runGet getList body
+    mapM_ (\x -> appendFile result $ (show (Passport (fromIntegral f) x)) ++ "\n") l
+    where
+    getList = many getWord32host
 
 sortMMapedVector :: FilePath -> IO ()
 sortMMapedVector fp = sort =<< (unsafeMMapMVector fp ReadWrite Nothing :: IO (V.MVector (PrimState IO) Word32))
