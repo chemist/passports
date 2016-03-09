@@ -32,3 +32,10 @@ executable passports_db
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall -O2
+
+executable web
+  main-is: Web.hs
+  build-depends: base >= 4.7, Spock, text, aeson
+  hs-source-dirs: src
+  default-language: Haskell2010
+  ghc-options: -Wall -O2
