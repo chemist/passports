@@ -2,14 +2,13 @@
 module Utils where
 
 import           Control.Applicative              (many, (<|>))
-import           Control.Monad                    (forM_, unless, void)
+import           Control.Monad                    (forM_, void)
 import           Control.Monad.IO.Class
-import           Data.ByteString.Char8            (ByteString, hPut, null,
-                                                   readFile)
+import           Data.ByteString.Char8            (ByteString, hPut, readFile)
 import           Data.Either
 import           Data.Word                        (Word32, Word8)
 import           Pipes                            (Consumer, Producer, await,
-                                                   runEffect, yield, (>->))
+                                                   runEffect, (>->))
 import           System.Directory                 (createDirectoryIfMissing)
 import           System.FilePath                  ((</>))
 import           System.IO                        (IOMode (..), withFile)
@@ -18,7 +17,8 @@ import           Text.Printf                      (printf)
 import           Control.Monad.Morph
 import           Control.Monad.Primitive          (PrimState)
 import           Data.Attoparsec.ByteString.Char8 (Parser, char, decimal, digit,
-                                                   endOfInput, endOfLine,
+                                                   endOfInput, endOfLine, sepBy,
+                                                   skipMany, skipMany1, space,
                                                    takeWhile)
 import           Data.Bits                        (shiftR)
 import           Data.Char                        (digitToInt)
@@ -39,7 +39,15 @@ import           Prelude                          hiding (elem, map, null,
                                                    readFile, takeWhile)
 
 input :: Parser Passport
-input = Passport <$> label <*> decimal <* endOfInput
+input = Passport <$> label <*> decimal <* (endOfInput <|> endOfLine)
+
+inputs :: Parser [Passport]
+inputs = (passport `sepBy` sp) <* end
+  where
+    passport = Passport <$> label <*> decimal
+    sp = skipMany space *> skipMany endOfLine <* skipMany space
+    end = skipMany space *> skipMany endOfLine *> skipMany space *> endOfInput
+
 
 label :: Parser Word8
 label = fromIntegral . digitToInt <$> digit
@@ -60,7 +68,6 @@ parsePassport = good <|> bad
                 x <- decimal <* char ','
                 y <- decimal
                 return $ x * 1000000 + y
-
 
 toPassportVector :: IO ()
 toPassportVector = do

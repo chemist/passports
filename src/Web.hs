@@ -1,23 +1,36 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Web where
 
+import           Control.Applicative           (many)
 import           Control.Monad.IO.Class
-import           Data.Text              (Text, pack)
-import           Utils
+import           Data.Aeson                    hiding (json)
+import           Data.Attoparsec.ByteString    (parseOnly)
+import           Data.Text                     (Text, pack)
+import           Network.HTTP.Types.Status     (status406)
+import           Network.Wai.Middleware.Static
+import           Utils                         hiding (Passport)
 import           Web.Spock.Safe
 
 main :: IO ()
-main = runSpock 3000 $ spockT id $ do
+main = runSpock 3100 $ spockT id $ do
+    middleware (staticPolicy (addBase "static"))
     get root $ file "index" "static/index.html"
     post "bulk" $ bulk
 
 bulk :: ActionT IO ()
 bulk = do
-    passports <- body
-    liftIO $ print passports
-    text $ pack $ show passports
+    raw <- body
+--    setHeader "Access-Control-Allow-Origin" "*"
+    case parseOnly inputs raw of
+         Left s -> do
+             setStatus status406
+             text (pack s)
+         Right r -> json =<< (liftIO $ mapM (\x -> Passport (pack $ show x) <$> (check x)) r)
 
 data Passport = Passport
-  { passport    :: Text
-  , checkResult :: Bool
+  { passport :: Text
+  , status   :: Bool
   } deriving (Show, Eq)
+
+instance ToJSON Passport where
+    toJSON (Passport passport' status') = object [ "passport" .= passport', "status" .= status' ]
