@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Web where
+module Main where
 
-import           Control.Applicative           (many)
+-- import           Control.Applicative           (many)
 import           Control.Monad.IO.Class
 import           Data.Aeson                    hiding (json)
 import           Data.Attoparsec.ByteString    (parseOnly)
